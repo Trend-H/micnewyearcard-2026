@@ -1,0 +1,890 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>2026 賀年卡製作 | Custom New Year Card</title>
+    <!-- 引入 Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 引入 Face-api.js -->
+    <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+    <!-- 引入 Font Awesome (修復 Icon 顯示) -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    
+    <!-- 設定字體 -->
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@300;500;700&family=Noto+Sans+TC:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+
+    <style>
+        body {
+            font-family: 'Noto Serif TC', serif;
+            color: #433D3C;
+            background-color: #FDFBF7;
+        }
+        
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.95); 
+            backdrop-filter: blur(5px);
+            border: 1px solid rgba(255,255,255,0.8);
+        }
+
+        /* 滑桿樣式優化 */
+        input[type=range] { -webkit-appearance: none; background: transparent; }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none; height: 24px; width: 24px; border-radius: 50%;
+            background: #8E354A; cursor: pointer; margin-top: -10px; 
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            border: 2px solid white;
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%; height: 4px; cursor: pointer; background: rgba(0,0,0,0.1); border-radius: 2px;
+        }
+
+        /* 畫布背景 - 移除灰色，改為透明或配合主題 */
+        .canvas-bg {
+            background-color: transparent;
+        }
+
+        /* Loading 動畫 */
+        .loader {
+            border: 2px solid #f3f3f3; border-top: 2px solid #8E354A; border-radius: 50%;
+            width: 16px; height: 16px; animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        .btn-primary {
+            background-color: #8E354A; color: white; transition: all 0.3s ease;
+        }
+        .btn-primary:active {
+            transform: scale(0.98);
+        }
+
+        /* 步驟切換動畫與顯示控制 */
+        .step-section {
+            display: none !important; /* 強制隱藏 */
+            animation: fadeIn 0.4s ease-out;
+        }
+        
+        /* 一般步驟顯示為 block */
+        .step-section.active {
+            display: block !important;
+        }
+
+        /* Step 3 特殊處理：顯示時需要用 flex 排版 */
+        #step3.active {
+            display: flex !important;
+        }
+
+        /* 只有在 Step 3 時鎖定網頁捲動，避免拖曳畫布時網頁跟著動 */
+        body.lock-scroll {
+            overflow: hidden;
+            overscroll-behavior: none;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(5px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center safe-area-inset-bottom">
+
+    <!-- Header 區域 -->
+    <header id="mainHeader" class="text-center pt-6 pb-2 px-4 w-full flex flex-col items-center transition-all duration-300">
+        <!-- 1. 新增公司 LOGO 區域 -->
+        <div class="mb-4 w-full flex justify-center">
+            <!-- 請確保您的資料夾中有 logo.png，或替換成您的圖片連結 -->
+            <img src="logo.png" alt="Company Logo" class="h-12 md:h-16 object-contain" onerror="this.style.display='none'">
+        </div>
+
+        <div class="mb-1 text-center">
+            <!-- 加大標題 -->
+            <h1 class="text-3xl md:text-4xl font-black tracking-widest text-[#8E354A]">謹賀新年</h1>
+            <!-- 新增副標題 -->
+            <p class="text-lg md:text-xl text-[#8E354A] mt-2 font-bold tracking-wider">- 快來製作專屬的新年賀卡吧！ -</p>
+        </div>
+        
+        <!-- 步驟進度條 -->
+        <div class="flex items-center justify-center gap-4 mt-4 w-full max-w-xs">
+            <div id="progress-1" class="flex flex-col items-center transition-all">
+                <div class="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold bg-[#8E354A] text-white">1</div>
+            </div>
+            <div class="h-[1px] w-8 bg-gray-300"></div>
+            <div id="progress-2" class="flex flex-col items-center transition-all">
+                <div class="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold bg-gray-200 text-gray-500">2</div>
+            </div>
+            <div class="h-[1px] w-8 bg-gray-300"></div>
+            <div id="progress-3" class="flex flex-col items-center transition-all">
+                <div class="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold bg-gray-200 text-gray-500">3</div>
+            </div>
+        </div>
+    </header>
+
+    <!-- 主操作區 -->
+    <main class="w-full max-w-md md:max-w-2xl flex-grow flex flex-col relative pb-10"> <!-- 增加 pb-10 確保底部不被切掉 -->
+        
+        <!-- STEP 1: 選擇樣式 -->
+        <section id="step1" class="step-section active p-4">
+            <div class="text-center mb-4">
+                <!-- 加大字體 -->
+                <p class="text-xl font-bold text-gray-700">請選擇一張喜歡的賀卡樣式</p>
+            </div>
+            <!-- Grid 設定 -->
+            <div id="templateContainer" class="grid grid-cols-2 gap-4">
+                <!-- 透過 JS 動態生成 -->
+            </div>
+        </section>
+
+        <!-- STEP 2: 上傳照片 -->
+        <section id="step2" class="step-section p-4">
+            <div class="bg-white rounded-2xl shadow-sm border border-stone-100 p-6">
+                <div class="flex items-center justify-between mb-2">
+                    <button onclick="goBack()" class="text-sm text-gray-400 hover:text-[#8E354A] flex items-center px-2 py-1 rounded hover:bg-gray-50">
+                        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
+                        重選
+                    </button>
+                    <h2 class="text-base font-bold text-[#8E354A]">上傳照片</h2>
+                    <div class="w-10"></div>
+                </div>
+
+                <div class="flex flex-col gap-4 items-center">
+                    <!-- 動態提示文字 -->
+                    <div id="uploadHintContainer" class="w-full hidden">
+                         <p id="uploadHintText" class="text-base text-[#8E354A] text-center font-bold bg-amber-50 border border-amber-100 px-4 py-3 rounded-lg w-full shadow-sm animate-pulse">
+                            <!-- JS 會自動更新這裡 -->
+                        </p>
+                    </div>
+
+                    <label class="w-full cursor-pointer border-2 border-dashed border-[#D4AF37] rounded-xl p-6 text-center hover:bg-amber-50/50 transition-all bg-stone-50 group">
+                        <input type="file" id="uploadInput" accept="image/*" class="hidden">
+                        <div class="text-[#8E354A] mb-2 group-hover:scale-110 transition-transform duration-300">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 mx-auto opacity-80" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            </svg>
+                        </div>
+                        <span class="text-sm text-gray-600 font-medium group-hover:text-[#8E354A]">點擊上傳照片</span>
+                    </label>
+                    
+                    <div id="uploadPreview" class="hidden w-full text-center mt-4">
+                        <p class="text-2xl font-black text-green-600 mb-6 flex items-center justify-center gap-2 animate-bounce" style="font-family: 'Noto Sans TC', sans-serif;">
+                            <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>
+                            照片已讀取！
+                        </p>
+                        <button onclick="changeStep(3)" class="w-full btn-primary py-4 rounded-xl shadow-lg text-lg font-bold tracking-wider flex items-center justify-center gap-2 transform transition hover:scale-[1.02]">
+                            下一步：調整位置
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"></path></svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- STEP 3: 調整與下載 -->
+        <section id="step3" class="step-section fixed inset-0 z-50 bg-[#FDFBF7] flex-col h-[100dvh]">
+            
+            <!-- 1. 畫布區域 -->
+            <div class="relative flex-grow w-full flex items-center justify-center overflow-hidden touch-none canvas-bg" id="canvasWrapper">
+                
+                <!-- 懸浮返回按鈕 -->
+                <button onclick="goBack()" class="absolute top-4 left-4 z-10 bg-white/70 backdrop-blur-sm p-3 rounded-full shadow-md text-gray-700 hover:bg-white hover:text-[#8E354A] transition-all">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 19l-7-7 7-7"></path></svg>
+                </button>
+                
+                <!-- 畫布 -->
+                <canvas id="cardCanvas" class="shadow-2xl max-w-full max-h-full object-contain"></canvas>
+            </div>
+
+            <!-- 2. 控制面板 -->
+            <div class="flex-none bg-white w-full md:w-[90%] md:max-w-2xl md:mx-auto md:rounded-3xl md:mb-6 md:shadow-2xl rounded-t-3xl p-5 pb-8 shadow-[0_-5px_20px_rgba(0,0,0,0.1)] z-20 relative transition-all">
+                
+                <!-- 頂部小把手 -->
+                <div class="w-12 h-1 bg-gray-200 rounded-full mx-auto mb-2"></div>
+
+                <!-- 1. 修改：文字放大 -->
+                <p class="text-center text-lg md:text-xl text-[#8E354A] font-bold mb-4 flex items-center justify-center">
+                    <i class="fas fa-hand-pointer mr-2"></i> 
+                    可以用手拖曳位置、雙指縮放旋轉
+                </p>
+
+                <!-- 第一排：功能按鈕 -->
+                <div class="flex justify-between items-center mb-5">
+                    <div class="flex gap-3">
+                         <button onclick="undo()" id="undoBtn" disabled class="w-10 h-10 flex items-center justify-center rounded-full bg-gray-100 hover:bg-[#8E354A] hover:text-white text-gray-600 disabled:opacity-30 transition-colors">
+                            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg>
+                        </button>
+                        <button onclick="redo()" id="redoBtn" disabled class="w-10 h-10 flex items-center justify-center rounded-full bg-gray-100 hover:bg-[#8E354A] hover:text-white text-gray-600 disabled:opacity-30 transition-colors">
+                            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 10h-10a8 8 0 00-8 8v2M21 10l-6 6m6-6l-6-6" /></svg>
+                        </button>
+                    </div>
+                    
+                    <div class="flex flex-col items-end">
+                        <button id="autoAlignBtn" onclick="autoAlignFace()" disabled class="flex items-center gap-2 px-4 py-2 rounded-full bg-[#8E354A]/10 text-[#8E354A] text-sm font-bold border border-[#8E354A]/20 hover:bg-[#8E354A] hover:text-white transition-all disabled:opacity-40">
+                            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                            <span>AI 對位</span>
+                            <div id="aiLoader" class="loader hidden ml-1"></div>
+                        </button>
+                        <!-- 2. AI 對位提醒文字 -->
+                        <span id="aiWaitMsg" class="hidden text-xs text-[#8E354A] mt-1 animate-bounce">首次AI對位請耐心等候...</span>
+                    </div>
+                </div>
+
+                <!-- 滑桿區 -->
+                <div class="space-y-4 mb-5">
+                    <!-- 縮放 -->
+                    <div class="flex items-center gap-3">
+                        <span class="text-xs text-gray-500 font-bold w-8 text-center">大小</span>
+                        <!-- 最大值 3 (300%) -->
+                        <input type="range" id="scaleSlider" min="0.1" max="3" step="0.1" value="1" class="flex-grow h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                        <span id="scaleVal" class="text-xs text-gray-500 w-10 text-right font-mono">100%</span>
+                    </div>
+                    <!-- 旋轉 -->
+                    <div class="flex items-center gap-3">
+                        <span class="text-xs text-gray-500 font-bold w-8 text-center">旋轉</span>
+                        <input type="range" id="rotateSlider" min="-180" max="180" step="1" value="0" class="flex-grow h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                        <span id="rotateVal" class="text-xs text-gray-500 w-10 text-right font-mono">0°</span>
+                    </div>
+                </div>
+
+                <!-- 下載按鈕 -->
+                <button onclick="downloadImage()" class="w-full btn-primary py-4 rounded-xl shadow-lg text-lg font-bold tracking-widest flex items-center justify-center gap-2 active:scale-95 transition-transform">
+                    <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                    下載賀卡
+                </button>
+                
+            </div>
+        </section>
+
+    </main>
+
+    <!-- 解決 LINE/FB 內建瀏覽器無法下載問題的彈跳視窗 -->
+    <div id="saveModal" class="fixed inset-0 z-[100] bg-black/90 hidden flex-col items-center justify-center p-5 backdrop-blur-sm">
+        <div class="text-white text-center mb-6">
+            <p class="text-xl font-bold mb-2">🎉 賀卡製作完成！</p>
+            <p class="text-sm text-gray-300">請 <span class="text-yellow-400 font-bold border-b border-yellow-400">長按下方圖片</span> 並選擇「儲存圖片」</p>
+        </div>
+        <img id="finalImage" class="max-w-full max-h-[70vh] object-contain rounded-lg shadow-2xl border-2 border-white/20" alt="Generated Card" />
+        <button onclick="closeSaveModal()" class="mt-8 px-8 py-3 bg-white hover:bg-gray-100 text-[#8E354A] rounded-full font-bold shadow-lg transition-transform active:scale-95 flex items-center gap-2">
+            <i class="fas fa-times"></i> 關閉視窗
+        </button>
+    </div>
+
+    <!-- Firebase 整合腳本 -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getFirestore, doc, setDoc, updateDoc, increment, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+
+        let app, db, auth;
+        let appId = 'cny-card-app';
+
+        try {
+            const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+            appId = typeof __app_id !== 'undefined' ? __app_id : appId;
+            
+            if (Object.keys(firebaseConfig).length > 0) {
+                app = initializeApp(firebaseConfig);
+                auth = getAuth(app);
+                db = getFirestore(app);
+                initAuth();
+            }
+        } catch (e) { console.warn("Firebase Init Skipped"); }
+
+        async function initAuth() {
+            if (!auth) return;
+            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                await signInWithCustomToken(auth, __initial_auth_token);
+            } else {
+                await signInAnonymously(auth);
+            }
+            onAuthStateChanged(auth, (user) => {
+                if (user) {
+                    trackVisit(); 
+                }
+            });
+        }
+
+        async function trackVisit() {
+            if (!db) return;
+            const statsRef = doc(db, 'artifacts', appId, 'public', 'data', 'stats', 'summary');
+            try { await updateDoc(statsRef, { visits: increment(1) }); } 
+            catch (e) { await setDoc(statsRef, { visits: 1, downloads: 0 }, { merge: true }); }
+        }
+
+        window.trackDownloadEvent = async function() {
+            if (!db) return;
+            const statsRef = doc(db, 'artifacts', appId, 'public', 'data', 'stats', 'summary');
+            try { await updateDoc(statsRef, { downloads: increment(1) }); } catch (e) {}
+        };
+    </script>
+
+    <script>
+        // --- 設定區 ---
+        const templates = [
+            // Card 1: 人臉模式 (Face Mode) - 右下角棕馬
+            { 
+                id: 0, 
+                src: 'card-01.png', 
+                type: 'face', 
+                hole: { x:700, y:1073, size: 100, rotation:5 }, 
+                // 修改提示文字
+                hint: '💡 請上傳臉部清晰的個人獨照'
+            },
+            // Card 2: 人臉模式 (Face Mode) - 中間粉紅人
+            { 
+                id: 1, 
+                src: 'card-02.png', 
+                type: 'face', 
+                hole: { x:380, y:1350, size:100, rotation:-16 }, 
+                // 修改提示文字
+                hint: '💡 請上傳臉部清晰的個人獨照' 
+            },
+            // Card 3: 填滿模式 (Fill Mode) - 左下角藍綠人
+            { 
+                id: 2, 
+                src: 'card-03.png', 
+                type: 'fill', 
+                hole: {x:540, y:970, w:920, h:1280}, 
+                // 修改提示文字
+                hint: '✨ 請上傳您喜歡的照片'
+            },
+            // Card 4: 填滿模式 (Fill Mode) - 大相框
+            { 
+                id: 3, 
+                src: 'card-04.png', 
+                type: 'fill', 
+                hole: { x:540, y:970, w:920, h:1280},
+                // 修改提示文字
+                hint: '✨ 請上傳您喜歡的照片'
+            } 
+        ];
+
+        // --- 變數與初始化 ---
+        let currentStep = 1;
+        const canvas = document.getElementById('cardCanvas');
+        const ctx = canvas.getContext('2d');
+        // 初始大小，稍後會根據載入的圖片重設
+        canvas.width = 1080; canvas.height = 1920;
+
+        let currentTemplate = templates[0];
+        let frameImg = new Image();
+        let userImg = new Image();
+        let userImgLoaded = false;
+        let imgState = { x: 0, y: 0, scale: 1, rotation: 0 };
+        let isSliderActive = false; // 新增狀態：是否正在調整滑桿
+
+        // 歷史紀錄
+        const MAX_HISTORY = 20;
+        let historyStack = [];
+        let historyIndex = -1;
+
+        // UI 綁定
+        const scaleSlider = document.getElementById('scaleSlider');
+        const rotateSlider = document.getElementById('rotateSlider');
+        const undoBtn = document.getElementById('undoBtn'), redoBtn = document.getElementById('redoBtn');
+        const uploadInput = document.getElementById('uploadInput'), templateContainer = document.getElementById('templateContainer');
+        const autoAlignBtn = document.getElementById('autoAlignBtn'), aiLoader = document.getElementById('aiLoader');
+        const uploadPreview = document.getElementById('uploadPreview');
+        const mainHeader = document.getElementById('mainHeader');
+        const canvasWrapper = document.getElementById('canvasWrapper');
+        const uploadHintText = document.getElementById('uploadHintText');
+        const uploadHintContainer = document.getElementById('uploadHintContainer');
+        const aiWaitMsg = document.getElementById('aiWaitMsg');
+
+        initTemplateButtons();
+        
+        // --- 步驟控制與瀏覽器歷史紀錄 ---
+        
+        // 初始化：當頁面載入時，設定初始狀態
+        window.addEventListener('load', () => {
+            history.replaceState({ step: 1 }, null, "");
+        });
+
+        // 監聽上一頁按鈕 (popstate)
+        window.addEventListener('popstate', (event) => {
+            if (event.state && event.state.step) {
+                internalChangeStep(event.state.step);
+            } else {
+                internalChangeStep(1);
+            }
+        });
+
+        // 用戶點擊按鈕時呼叫的函式 (會寫入歷史紀錄)
+        window.changeStep = function(step) {
+            history.pushState({ step: step }, null, "");
+            internalChangeStep(step);
+        }
+
+        // 用來返回上一頁 (其實就是 history.back())
+        window.goBack = function() {
+            history.back();
+        }
+
+        // 實際執行畫面切換的內部函式
+        function internalChangeStep(step) {
+            // 如果回到 Step 2 (從 Step 3 或其他)，重置照片上傳狀態
+            if (step === 2) {
+                document.getElementById('uploadPreview').classList.add('hidden');
+                document.getElementById('uploadInput').value = '';
+                userImgLoaded = false;
+                
+                // 更新提示文字
+                if(currentTemplate && currentTemplate.hint) {
+                    uploadHintText.innerText = currentTemplate.hint;
+                    uploadHintContainer.classList.remove('hidden');
+                } else {
+                    uploadHintContainer.classList.add('hidden');
+                }
+            }
+
+            // 處理 Step 3 的特殊捲動鎖定
+            if (step === 3) {
+                document.body.classList.add('lock-scroll');
+                mainHeader.style.display = 'none';
+                setTimeout(() => {
+                    resizeCanvasDisplay(); 
+                    draw();
+                }, 100);
+            } else {
+                document.body.classList.remove('lock-scroll');
+                mainHeader.style.display = 'flex';
+                // 離開 Step 3 自動隱藏 AI 訊息
+                if(aiWaitMsg) aiWaitMsg.classList.add('hidden');
+            }
+
+            // 切換 DOM 顯示
+            document.querySelectorAll('.step-section').forEach(el => el.classList.remove('active'));
+            document.getElementById(`step${step}`).classList.add('active');
+            
+            updateProgress(step);
+            currentStep = step;
+        }
+
+        function updateProgress(step) {
+            for(let i=1; i<=3; i++) {
+                const el = document.getElementById(`progress-${i}`);
+                const circle = el.querySelector('div');
+                
+                if(i <= step) {
+                    circle.className = "w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold transition-colors bg-[#8E354A] text-white";
+                } else {
+                    circle.className = "w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold transition-colors bg-gray-200 text-gray-500";
+                }
+            }
+        }
+
+        // --- 核心功能 ---
+        function initTemplateButtons() {
+            templateContainer.innerHTML = '';
+            templates.forEach((tpl, index) => {
+                const div = document.createElement('div');
+                div.className = "cursor-pointer group relative";
+                div.onclick = () => selectTemplate(index);
+                
+                const imgContainer = document.createElement('div');
+                imgContainer.className = "relative aspect-[9/16] rounded-lg overflow-hidden shadow-sm hover:shadow-lg transition-all border-2 border-transparent group-hover:border-[#8E354A] bg-gray-100";
+                
+                const img = document.createElement('img');
+                img.src = tpl.src;
+                img.className = "w-full h-full object-cover"; 
+                
+                const hoverOverlay = document.createElement('div');
+                hoverOverlay.className = "absolute inset-0 bg-[#8E354A]/0 group-hover:bg-[#8E354A]/10 transition-colors";
+
+                imgContainer.appendChild(img);
+                imgContainer.appendChild(hoverOverlay);
+                div.appendChild(imgContainer);
+                
+                const label = document.createElement('p');
+                label.className = "text-center text-xs mt-1.5 text-gray-500 font-medium group-hover:text-[#8E354A]";
+                label.innerText = `樣式 ${index + 1}`;
+                
+                div.appendChild(label);
+                templateContainer.appendChild(div);
+            });
+        }
+
+        function selectTemplate(index) {
+            currentTemplate = templates[index];
+            frameImg.src = currentTemplate.src;
+            frameImg.onload = () => {
+                if (frameImg.naturalWidth) {
+                    canvas.width = frameImg.naturalWidth;
+                    canvas.height = frameImg.naturalHeight;
+                }
+                draw();
+            };
+            changeStep(2);
+        }
+
+        uploadInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                userImg = new Image();
+                userImg.onload = () => {
+                    userImgLoaded = true;
+                    // 修改: 預設填滿畫布，不縮小
+                    const scale = Math.max(canvas.width / userImg.width, canvas.height / userImg.height);
+                    imgState = { 
+                        x: (canvas.width - userImg.width * scale)/2, 
+                        y: (canvas.height - userImg.height * scale)/2, 
+                        scale: scale, 
+                        rotation: 0 
+                    };
+                    
+                    saveHistory();
+                    draw();
+                    autoAlignBtn.disabled = false;
+                    
+                    document.getElementById('uploadPreview').classList.remove('hidden');
+                };
+                userImg.src = event.target.result;
+            };
+            reader.readAsDataURL(file);
+        });
+
+        function saveHistory() {
+            if (historyIndex < historyStack.length - 1) historyStack = historyStack.slice(0, historyIndex + 1);
+            historyStack.push(JSON.parse(JSON.stringify(imgState)));
+            if (historyStack.length > MAX_HISTORY) historyStack.shift(); else historyIndex++;
+            updateHistoryButtons();
+        }
+        function undo() { if (historyIndex > 0) { historyIndex--; restoreState(historyStack[historyIndex]); } }
+        function redo() { if (historyIndex < historyStack.length - 1) { historyIndex++; restoreState(historyStack[historyIndex]); } }
+        function restoreState(state) { imgState = JSON.parse(JSON.stringify(state)); updateUI(); draw(); updateHistoryButtons(); }
+        function updateHistoryButtons() {
+            undoBtn.disabled = historyIndex <= 0; redoBtn.disabled = historyIndex >= historyStack.length - 1;
+            undoBtn.style.opacity = undoBtn.disabled ? "0.3" : "1"; redoBtn.style.opacity = redoBtn.disabled ? "0.3" : "1";
+        }
+
+        async function autoAlignFace() {
+            if(!userImgLoaded) return;
+            autoAlignBtn.disabled = true; 
+            aiLoader.classList.remove('hidden');
+            aiWaitMsg.classList.remove('hidden'); // 顯示等待訊息
+
+            // 判斷是否為 Fill 模式 (圖片 3, 4)
+            if (currentTemplate.type === 'fill') {
+                setTimeout(() => {
+                    // 使用 currentTemplate.hole.w / h 或動態計算
+                    // 因為 hole 可能只給了 x, y，這裡補上動態填滿邏輯
+                    let targetW = currentTemplate.hole.w;
+                    let targetH = currentTemplate.hole.h;
+
+                    // 如果沒有指定 w, h (例如圖片3)，則預設填滿中心區域
+                    if (!targetW) targetW = canvas.width * 0.86;
+                    if (!targetH) targetH = canvas.height * 0.62;
+
+                    const targetCX = currentTemplate.hole.x || canvas.width * 0.5;
+                    const targetCY = currentTemplate.hole.y || canvas.height * 0.52;
+
+                    const scaleW = targetW / userImg.width;
+                    const scaleH = targetH / userImg.height;
+                    // Cover 模式：取最大比例以填滿
+                    const scale = Math.max(scaleW, scaleH);
+                    
+                    imgState.rotation = currentTemplate.hole.rotation || 0;
+                    // 修改：最大值改為 3 (300%)
+                    imgState.scale = Math.min(scale, 3);
+                    
+                    imgState.x = targetCX - (userImg.width * imgState.scale) / 2;
+                    imgState.y = targetCY - (userImg.height * imgState.scale) / 2;
+                    
+                    updateUI(); 
+                    draw(); 
+                    saveHistory();
+                    
+                    autoAlignBtn.disabled = false; 
+                    aiLoader.classList.add('hidden');
+                    aiWaitMsg.classList.add('hidden'); // 隱藏訊息
+                }, 500); 
+                return;
+            }
+
+            // Face 模式 (圖片 1, 2)
+            try {
+                await faceapi.nets.tinyFaceDetector.loadFromUri('https://justadudewhohacks.github.io/face-api.js/models');
+                const detection = await faceapi.detectSingleFace(userImg, new faceapi.TinyFaceDetectorOptions());
+                if (detection) {
+                    const box = detection.box;
+                    let h = currentTemplate.hole;
+                    
+                    let holeX = h.x;
+                    let holeY = h.y;
+                    let holeSize = h.size;
+
+                    const faceMin = Math.min(box.width, box.height);
+                    // 修正：放大比例係數，避免人臉對位後過小
+                    let scale = (holeSize / faceMin) * 3.0; 
+                    // 修改：最大值改為 3 (300%)
+                    scale = Math.min(Math.max(scale, 0.1), 3);
+                    
+                    imgState.rotation = h.rotation || 0;
+                    imgState.scale = scale;
+                    imgState.x = holeX - (box.x + box.width/2) * scale;
+                    imgState.y = holeY - ((box.y + box.height/2) + box.height*0.1) * scale;
+                    
+                    updateUI(); draw(); saveHistory();
+                } else { alert("偵測不到人臉，請手動調整。"); }
+            } catch (e) { 
+                console.error(e); 
+            }
+            finally { 
+                autoAlignBtn.disabled = false; 
+                aiLoader.classList.add('hidden');
+                aiWaitMsg.classList.add('hidden'); // 隱藏訊息
+            }
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // 1. 畫使用者照片
+            if (userImgLoaded) {
+                ctx.save();
+                const cx = imgState.x + (userImg.width * imgState.scale)/2;
+                const cy = imgState.y + (userImg.height * imgState.scale)/2;
+                ctx.translate(cx, cy); ctx.rotate(imgState.rotation * Math.PI/180);
+                ctx.scale(imgState.scale, imgState.scale);
+                ctx.drawImage(userImg, -userImg.width/2, -userImg.height/2);
+                ctx.restore();
+            }
+            
+            // 2. 畫相框
+            if(frameImg.complete && frameImg.naturalWidth) {
+                // 新增：互動時半透明
+                if (isDragging || isPinching || isSliderActive) {
+                    ctx.globalAlpha = 0.5; // 設為半透明 (0.5)
+                }
+                
+                ctx.drawImage(frameImg, 0, 0, canvas.width, canvas.height);
+                
+                ctx.globalAlpha = 1.0; // 恢復
+            }
+        }
+        
+        function resizeCanvasDisplay() {
+            const wrapper = document.getElementById('canvasWrapper');
+            if(wrapper) {
+                const w = wrapper.clientWidth;
+                const h = wrapper.clientHeight;
+            }
+        }
+        window.addEventListener('resize', resizeCanvasDisplay);
+
+        // 新增 Slider 互動事件處理器
+        const sliderStart = () => { isSliderActive = true; draw(); };
+        const sliderEnd = () => { isSliderActive = false; draw(); };
+
+        scaleSlider.addEventListener('input', (e) => { 
+            imgState.scale = parseFloat(e.target.value); 
+            document.getElementById('scaleVal').innerText = Math.round(imgState.scale * 100) + '%';
+            draw(); 
+        });
+        scaleSlider.addEventListener('change', saveHistory);
+        // 綁定 Slider 開始/結束事件
+        scaleSlider.addEventListener('mousedown', sliderStart);
+        scaleSlider.addEventListener('touchstart', sliderStart);
+        scaleSlider.addEventListener('mouseup', sliderEnd);
+        scaleSlider.addEventListener('touchend', sliderEnd);
+        
+        rotateSlider.addEventListener('input', (e) => { 
+            imgState.rotation = parseInt(e.target.value); 
+            document.getElementById('rotateVal').innerText = imgState.rotation + '°';
+            draw(); 
+        });
+        rotateSlider.addEventListener('change', saveHistory);
+        // 綁定 Slider 開始/結束事件
+        rotateSlider.addEventListener('mousedown', sliderStart);
+        rotateSlider.addEventListener('touchstart', sliderStart);
+        rotateSlider.addEventListener('mouseup', sliderEnd);
+        rotateSlider.addEventListener('touchend', sliderEnd);
+
+        function updateUI() {
+            if (imgState.scale > scaleSlider.max) scaleSlider.max = Math.ceil(imgState.scale * 1.5);
+            scaleSlider.value = imgState.scale; 
+            document.getElementById('scaleVal').innerText = Math.round(imgState.scale * 100) + '%';
+            
+            rotateSlider.value = imgState.rotation;
+            document.getElementById('rotateVal').innerText = Math.round(imgState.rotation) + '°';
+        }
+
+        // --- 多點觸控 (Pinch/Rotate) 與 拖曳 ---
+        let isDragging = false, startX, startY, originX, originY;
+        let initialPinchDistance = 0;
+        let initialScale = 1;
+        let initialPinchAngle = 0;
+        let initialRotation = 0;
+        let isPinching = false;
+
+        canvasWrapper.addEventListener('mousedown', startDrag); 
+        canvasWrapper.addEventListener('touchstart', handleTouchStart, {passive: false});
+        
+        document.addEventListener('mousemove', dragging); 
+        // 修正：只有在真正拖曳或縮放時才 preventDefault，避免卡住其他控制項
+        document.addEventListener('touchmove', handleTouchMove, {passive: false});
+        
+        document.addEventListener('mouseup', stopDrag); 
+        document.addEventListener('touchend', handleTouchEnd);
+
+        // 桌面/單指拖曳開始
+        function startDrag(e) { 
+            if(!userImgLoaded || currentStep !== 3) return;
+            // 忽略控制面板內的點擊
+            if(e.target.closest('.flex-none')) return;
+
+            isDragging = true; 
+            startX = e.clientX; 
+            startY = e.clientY; 
+            originX = imgState.x; 
+            originY = imgState.y; 
+            canvas.style.cursor='grabbing'; 
+            draw(); // 觸發重繪以應用半透明
+        }
+
+        // 桌面/單指拖曳中
+        function dragging(e) { 
+            if(!isDragging || !e) return; 
+            
+            const rect = canvas.getBoundingClientRect();
+            const scaleFactor = canvas.width / rect.width;
+
+            const dx = (e.clientX - startX) * scaleFactor;
+            const dy = (e.clientY - startY) * scaleFactor;
+
+            imgState.x = originX + dx; 
+            imgState.y = originY + dy; 
+            draw(); 
+        }
+
+        // 停止拖曳
+        function stopDrag() { 
+            if(isDragging) { 
+                isDragging = false; 
+                canvas.style.cursor='default'; 
+                saveHistory(); 
+                draw(); // 觸發重繪以恢復不透明
+            } 
+        }
+
+        // 觸控開始 (處理單指與雙指)
+        function handleTouchStart(e) {
+            if(!userImgLoaded || currentStep !== 3) return;
+            // 忽略控制面板內的觸控
+            if(e.target.closest('.flex-none')) return;
+
+            if (e.touches.length === 1) {
+                // 單指拖曳
+                isDragging = true;
+                startX = e.touches[0].clientX;
+                startY = e.touches[0].clientY;
+                originX = imgState.x;
+                originY = imgState.y;
+            } else if (e.touches.length === 2) {
+                // 雙指縮放旋轉
+                isPinching = true;
+                isDragging = false; // 暫停拖曳
+                
+                const t1 = e.touches[0];
+                const t2 = e.touches[1];
+                
+                initialPinchDistance = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+                initialScale = imgState.scale;
+                
+                initialPinchAngle = Math.atan2(t2.clientY - t1.clientY, t2.clientX - t1.clientX) * 180 / Math.PI;
+                initialRotation = imgState.rotation;
+            }
+            draw(); // 觸發重繪以應用半透明
+        }
+
+        // 觸控移動
+        function handleTouchMove(e) {
+            if (!e.touches) return;
+
+            // 修正：只在拖曳或縮放照片時阻止預設行為 (修復滑桿問題)
+            if (isDragging || isPinching) {
+                e.preventDefault(); 
+            }
+
+            if (e.touches.length === 1 && isDragging) {
+                // 單指拖曳邏輯
+                const t = e.touches[0];
+                const rect = canvas.getBoundingClientRect();
+                const scaleFactor = canvas.width / rect.width;
+                const dx = (t.clientX - startX) * scaleFactor;
+                const dy = (t.clientY - startY) * scaleFactor;
+                imgState.x = originX + dx;
+                imgState.y = originY + dy;
+                draw();
+            } else if (e.touches.length === 2 && isPinching) {
+                // 雙指邏輯
+                const t1 = e.touches[0];
+                const t2 = e.touches[1];
+                
+                // 1. 計算縮放
+                const currentDist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+                if (initialPinchDistance > 0) {
+                    const scaleChange = currentDist / initialPinchDistance;
+                    let newScale = initialScale * scaleChange;
+                    // 限制範圍
+                    newScale = Math.min(Math.max(newScale, 0.1), 3); // 修改：最大值改為 3 (300%)
+                    imgState.scale = newScale;
+                }
+
+                // 2. 計算旋轉
+                const currentAngle = Math.atan2(t2.clientY - t1.clientY, t2.clientX - t1.clientX) * 180 / Math.PI;
+                const angleChange = currentAngle - initialPinchAngle;
+                imgState.rotation = (initialRotation + angleChange) % 360;
+
+                updateUI(); // 同步滑桿
+                draw();
+            }
+        }
+
+        // 觸控結束
+        function handleTouchEnd(e) {
+            let stateChanged = false;
+            if (isPinching && e.touches.length < 2) {
+                isPinching = false;
+                stateChanged = true;
+                saveHistory();
+            }
+            if (isDragging && e.touches.length === 0) {
+                isDragging = false;
+                stateChanged = true;
+                saveHistory();
+            }
+            if (stateChanged) {
+                draw(); // 觸發重繪以恢復不透明
+            }
+        }
+
+        window.closeSaveModal = function() {
+            document.getElementById('saveModal').classList.add('hidden');
+            document.getElementById('saveModal').classList.remove('flex');
+        }
+
+        window.downloadImage = function() {
+            if(!userImgLoaded) { alert("請先上傳照片！"); return; }
+            if(window.trackDownloadEvent) window.trackDownloadEvent();
+            
+            const dataURL = canvas.toDataURL('image/png', 0.9);
+            const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Line/i.test(navigator.userAgent);
+
+            if (isMobile || window.innerWidth < 768) {
+                const modal = document.getElementById('saveModal');
+                const img = document.getElementById('finalImage');
+                img.src = dataURL;
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
+            } else {
+                const link = document.createElement('a');
+                link.download = `CNY_2026_${Date.now()}.png`;
+                link.href = dataURL;
+                link.click();
+            }
+        }
+    </script>
+</body>
+</html>
