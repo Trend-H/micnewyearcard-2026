@@ -2,6 +2,17 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
+
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-NFK3HKRXMK"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-NFK3HKRXMK');
+</script>
+
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>2026 賀年卡製作 | Custom New Year Card</title>
     <!-- 引入 Tailwind CSS -->
@@ -867,6 +878,12 @@
 
         window.downloadImage = function() {
             if(!userImgLoaded) { alert("請先上傳照片！"); return; }
+
+// --- 加入這段 GA4 追蹤代碼 ---
+    gtag('event', 'download_card', {
+        'event_category': 'engagement',
+        'event_label': currentTemplate.src // 記錄使用者下載的是哪一個樣式
+    });
             if(window.trackDownloadEvent) window.trackDownloadEvent();
             
             const dataURL = canvas.toDataURL('image/png', 0.9);
